@@ -16,5 +16,6 @@ self.onmessage = function(e) {
     } else if (e.data.command === 'stop') {
         clearInterval(timerId);
         timerId = null;
+                    targetTime = null;
     }
 };

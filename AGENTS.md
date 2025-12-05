@@ -46,6 +46,14 @@ Even with a Wake Lock, background tabs or inactive interactions can sometimes be
 * **Implementation:** A static `manifest.json` file is linked in the `<head>` of `index.html`.
 * **Purpose:** Allows Android devices to "Install App" and launch in standalone mode (no browser address bar).
 
+#### **E. Dynamic Stop/Reset Button**
+
+*   **Implementation**: The "Stop" button dynamically changes its text and function to "Reset" when the timer is not running.
+*   **Functionality**:
+    *   When the timer is active, the button says "STOP" and will halt the timer.
+    *   When the timer is inactive (either stopped or finished), the button says "RESET" and will return the timer to its initial configured state.
+*   **State Management**: This is handled in `app.js` through the `updateControls()` function, which checks the `isRunning` boolean flag.
+
 ## **3\. Configuration & State**
 
 * **Input Format:** TotalMinutes, Alert1, Alert2, Alert3... (e.g., 30, 15, 10, 5).  

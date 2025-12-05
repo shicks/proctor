@@ -96,14 +96,28 @@ function stopTimer() {
     isRunning = false;
     updateControls(false);
     stopAudio();
-    if (wakeLock) wakeLock.release();
+    if (wakeLock) {
+        wakeLock.release();
+        wakeLock = null;
+    }
+    if (alarmInterval) {
+        clearInterval(alarmInterval);
+        alarmInterval = null;
+    }
+    window.speechSynthesis?.cancel();
     el.input.disabled = false;
     el.overlay.classList.remove('alarm-bg');
     el.pocketMsg.classList.add('hidden');
 }
 
 function resetTimer() {
-    if (alarmInterval) clearInterval(alarmInterval);
+    if (alarmInterval) {
+        clearInterval(alarmInterval);
+        alarmInterval = null;
+    }
+    window.speechSynthesis?.cancel();
+    el.overlay.classList.remove('alarm-bg');
+    el.pocketMsg.classList.add('hidden');
     applyConfig();
 }
 
