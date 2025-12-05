@@ -64,4 +64,4 @@ Even with a Wake Lock, background tabs or inactive interactions can sometimes be
 
 * **Hardware Lock:** If the user ignores instructions and presses the physical power button, the timer **will pause** on most devices.  
 * **Audio Policy:** The user *must* interact with the page (click Start) to unlock the AudioContext. The app handles this, but it relies on that initial gesture.  
-* **iOS Installation:** iOS does not fully support the Data URI Manifest for "Add to Home Screen" icon definitions in all versions, but the \<link rel="apple-touch-icon"\> provides the icon.
+* **iOS Installation:** iOS does not fully support PWA manifest files for "Add to Home Screen" in all versions, but the `<link rel="apple-touch-icon">` provides the icon.
