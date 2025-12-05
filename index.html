@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Proctor Timer</title>
+    
+    <!-- PWA: iOS Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#111827">
+    
+    <!-- PWA: Icons (Data URIs) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23111827' stroke='%233b82f6' stroke-width='5'/><text x='50' y='55' font-family='monospace' font-size='40' text-anchor='middle' fill='white' font-weight='bold'>30</text></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23111827'/><circle cx='50' cy='50' r='40' fill='none' stroke='%233b82f6' stroke-width='8'/><text x='50' y='65' font-family='monospace' font-size='50' text-anchor='middle' fill='white' font-weight='bold'>PT</text></svg>">
+
+    <!-- PWA: Embedded Manifest (Data URI) 
+         This allows 'Add to Home Screen' on Android to work with standalone mode 
+         without an external manifest.json file. -->
+    <link rel="manifest" id="manifest-placeholder">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: #111827;
+            color: #f3f4f6;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+            overscroll-behavior: none;
+        }
+
+        /* The "Fake Sleep" Overlay */
+        #pocket-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000000;
+            z-index: 100;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .alarm-bg { animation: flash-red 0.5s infinite; }
+        @keyframes flash-red { 0%, 100% { background-color: #000; } 50% { background-color: #500; } }
+
+        .config-input {
+            background: #1f2937;
+            border: 1px solid #374151;
+            color: white;
+            text-align: center;
+            font-family: 'JetBrains Mono', monospace;
+            -webkit-appearance: none;
+        }
+        .config-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+        }
+        .config-input:disabled { opacity: 0.5; cursor: not-allowed; }
+    </style>
+</head>
+<body id="main-body" class="h-screen flex flex-col items-center justify-between p-6 safe-area-inset">
+
+    <!-- Header & Config -->
+    <div class="w-full text-center mt-4 space-y-4 max-w-sm">
+        <h1 class="text-xl font-bold text-gray-400">PROCTOR TIMER v6</h1>
+        <div class="flex flex-col gap-1">
+            <label class="text-xs text-gray-500 uppercase tracking-wider">Duration & Alerts (min)</label>
+            <input type="text" id="config-input" 
+                   class="config-input w-full p-3 rounded-lg text-lg shadow-sm transition" 
+                   placeholder="e.g. 30, 15, 10, 5"
+                   onchange="applyConfig()" 
+                   onkeyup="if(event.key === 'Enter') this.blur()">
+            <p id="config-status" class="text-[10px] text-gray-500 h-4">Format: Total, Alert 1, Alert 2...</p>
+        </div>
+    </div>
+
+    <!-- Timer Visuals -->
+    <div class="flex flex-col items-center justify-center flex-grow w-full">
+        <div class="relative w-64 h-64 flex items-center justify-center">
+            <svg class="transform -rotate-90 w-full h-full" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" fill="none" stroke="#374151" stroke-width="8" />
+                <circle id="progress-ring" cx="50" cy="50" r="45" fill="none" stroke="#3b82f6" stroke-width="8" stroke-dasharray="283" stroke-dashoffset="0" stroke-linecap="round" class="transition-all duration-1000 ease-linear"/>
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center">
+                <span id="timer-display" class="text-5xl font-bold tracking-widest">00:00</span>
+                <span class="text-sm text-gray-500 mt-2">MINUTES LEFT</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="w-full max-w-sm space-y-4 mb-8">
+        <div class="grid grid-cols-2 gap-4">
+            <button id="start-btn" onclick="startTimer()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl text-lg shadow-lg active:scale-95 transition">START</button>
+            <button id="stop-btn" onclick="stopTimer()" disabled class="w-full bg-gray-700 text-gray-400 font-bold py-4 rounded-xl text-lg opacity-50 cursor-not-allowed">STOP</button>
+        </div>
+        <button onclick="enterPocketMode()" class="w-full border-2 border-green-700 bg-green-900/20 text-green-400 hover:bg-green-900/40 font-bold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+            POCKET MODE
+        </button>
+    </div>
+
+    <!-- Pocket Mode Overlay -->
+    <div id="pocket-overlay">
+        <div class="text-gray-500 text-xs mb-8 text-center px-4">
+            SCREEN IS ON (SAVING BATTERY)<br>
+            DO NOT PRESS HARDWARE POWER BUTTON
+        </div>
+        <div id="pocket-time" class="text-8xl font-bold text-gray-800 font-mono select-none">00:00</div>
+        <div id="pocket-msg" class="text-red-500 text-4xl font-bold mt-8 hidden text-center">TIME UP!</div>
+        <div class="mt-12 text-gray-800 text-sm border border-gray-800 p-2 rounded">Double Tap to Wake</div>
+    </div>
+
+    <script>
+        // --- 1. Manifest Generation (Data URI) ---
+        // This generates the manifest.json content dynamically and injects it.
+        const manifestContent = {
+            "name": "Proctor Timer",
+            "short_name": "Proctor",
+            "start_url": ".",
+            "display": "standalone",
+            "background_color": "#111827",
+            "theme_color": "#111827",
+            "icons": [
+                {
+                    "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23111827' stroke='%233b82f6' stroke-width='5'/><text x='50' y='55' font-family='monospace' font-size='40' text-anchor='middle' fill='white' font-weight='bold'>30</text></svg>",
+                    "sizes": "192x192",
+                    "type": "image/svg+xml"
+                }
+            ]
+        };
+        const manifestBlob = new Blob([JSON.stringify(manifestContent)], {type: 'application/json'});
+        document.getElementById('manifest-placeholder').href = URL.createObjectURL(manifestBlob);
+
+
+        // --- 2. Worker Script (Blob) ---
+        // Creates a 'virtual' worker file from this string.
+        const workerScript = `
+            let timerId = null;
+            let targetTime = null;
+
+            self.onmessage = function(e) {
+                if (e.data.command === 'start') {
+                    targetTime = e.data.targetTime;
+                    timerId = setInterval(() => {
+                        const now = Date.now();
+                        const remaining = Math.max(0, Math.ceil((targetTime - now) / 1000));
+                        self.postMessage({ type: 'tick', seconds: remaining });
+                        if (remaining <= 0) {
+                            clearInterval(timerId);
+                            self.postMessage({ type: 'finish' });
+                        }
+                    }, 250); 
+                } else if (e.data.command === 'stop') {
+                    clearInterval(timerId);
+                    timerId = null;
+                }
+            };
+        `;
+
+        // --- 3. App Logic ---
+
+        let TOTAL_MINUTES = 30;
+        let CHECKPOINTS = [15, 10, 5];
+        
+        let worker = null;
+        let audioCtx = null;
+        let wakeLock = null;
+        let isRunning = false;
+        let lastSeconds = 0;
+        let whiteNoiseNode = null;
+
+        const el = {
+            display: document.getElementById('timer-display'),
+            pocketTime: document.getElementById('pocket-time'),
+            ring: document.getElementById('progress-ring'),
+            start: document.getElementById('start-btn'),
+            stop: document.getElementById('stop-btn'),
+            overlay: document.getElementById('pocket-overlay'),
+            pocketMsg: document.getElementById('pocket-msg'),
+            input: document.getElementById('config-input'),
+            status: document.getElementById('config-status')
+        };
+
+        // Initialize Config
+        const savedConfig = localStorage.getItem('proctorConfig');
+        el.input.value = savedConfig || "30, 15, 10, 5";
+        
+        // Initialize Worker
+        const blob = new Blob([workerScript], { type: 'application/javascript' });
+        worker = new Worker(URL.createObjectURL(blob));
+
+        worker.onmessage = (e) => {
+            if (e.data.type === 'tick') {
+                const s = e.data.seconds;
+                if (s !== lastSeconds) {
+                    lastSeconds = s;
+                    updateUI(s);
+                    checkAnnouncements(s);
+                }
+            } else if (e.data.type === 'finish') {
+                finishTimer();
+            }
+        };
+
+        applyConfig();
+
+        // --- Core Functions ---
+
+        function applyConfig() {
+            if (isRunning) return; 
+
+            const raw = el.input.value;
+            const numbers = raw.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n > 0);
+
+            if (numbers.length > 0) {
+                TOTAL_MINUTES = numbers[0];
+                CHECKPOINTS = numbers.slice(1).filter(n => n < TOTAL_MINUTES);
+                localStorage.setItem('proctorConfig', raw);
+                
+                const alertText = CHECKPOINTS.length > 0 ? CHECKPOINTS.join(', ') : 'None';
+                el.status.textContent = `Total: ${TOTAL_MINUTES}m | Alerts: ${alertText}`;
+                el.status.className = "text-[10px] text-green-500 h-4";
+
+                lastSeconds = TOTAL_MINUTES * 60;
+                updateUI(lastSeconds);
+            } else {
+                el.status.textContent = "Invalid format. Try: 30, 15, 10, 5";
+                el.status.className = "text-[10px] text-red-500 h-4";
+            }
+        }
+
+        async function startTimer() {
+            if (isRunning) return;
+            el.input.disabled = true;
+            initAudio();
+            requestWakeLock();
+            const now = Date.now();
+            const targetTime = now + (lastSeconds * 1000); 
+            worker.postMessage({ command: 'start', targetTime: targetTime });
+            isRunning = true;
+            updateControls(true);
+        }
+
+        function stopTimer() {
+            if (!isRunning) return;
+            worker.postMessage({ command: 'stop' });
+            isRunning = false;
+            updateControls(false);
+            stopAudio();
+            if (wakeLock) wakeLock.release();
+            el.input.disabled = false;
+            el.overlay.classList.remove('alarm-bg');
+            el.pocketMsg.classList.add('hidden');
+        }
+
+        function finishTimer() {
+            stopTimer(); 
+            lastSeconds = TOTAL_MINUTES * 60; 
+            el.overlay.classList.add('alarm-bg');
+            el.pocketMsg.classList.remove('hidden');
+            playAlarmSequence();
+        }
+
+        // --- Audio & Alarm ---
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            // White Noise Generator
+            const bufferSize = 2 * audioCtx.sampleRate;
+            const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const output = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) { output[i] = Math.random() * 0.005; }
+
+            whiteNoiseNode = audioCtx.createBufferSource();
+            whiteNoiseNode.buffer = noiseBuffer;
+            whiteNoiseNode.loop = true;
+            whiteNoiseNode.connect(audioCtx.destination);
+            whiteNoiseNode.start();
+        }
+
+        function stopAudio() {
+            if (whiteNoiseNode) {
+                try { whiteNoiseNode.stop(); } catch(e){}
+                whiteNoiseNode = null;
+            }
+        }
+
+        function playBeep(freq = 880) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
+            osc.stop(audioCtx.currentTime + 0.5);
+        }
+
+        function playAlarmSequence() {
+            let count = 0;
+            const interval = setInterval(() => {
+                playBeep(880); playBeep(1200);
+                navigator.vibrate([500, 200, 500]);
+                count++;
+                if (count > 10) clearInterval(interval); 
+            }, 1000);
+            speak("Time is up. Pencils down.");
+        }
+
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                const u = new SpeechSynthesisUtterance(text);
+                u.rate = 1.1;
+                window.speechSynthesis.speak(u);
+            }
+        }
+
+        // --- UI Updates ---
+
+        function checkAnnouncements(seconds) {
+            if (seconds % 60 === 0) {
+                const mins = seconds / 60;
+                if (CHECKPOINTS.includes(mins)) {
+                    speak(`${mins} minutes remaining.`);
+                    navigator.vibrate(500);
+                }
+            }
+        }
+
+        function updateUI(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            const str = `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+            el.display.textContent = str;
+            el.pocketTime.textContent = str;
+            document.title = str;
+            const r = 283; 
+            const totalSecs = TOTAL_MINUTES * 60;
+            const offset = r - (seconds / totalSecs) * r;
+            el.ring.style.strokeDashoffset = -offset;
+        }
+
+        function updateControls(active) {
+            el.start.disabled = active;
+            el.start.className = active ? "w-full bg-gray-700 text-gray-500 font-bold py-4 rounded-xl text-lg opacity-50 cursor-not-allowed" : "w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl text-lg shadow-lg active:scale-95 transition";
+            el.stop.disabled = !active;
+            el.stop.className = !active ? "w-full bg-gray-700 text-gray-400 font-bold py-4 rounded-xl text-lg opacity-50 cursor-not-allowed" : "w-full bg-red-600 hover:bg-red-500 text-white font-bold py-4 rounded-xl text-lg shadow-lg active:scale-95 transition";
+        }
+
+        // --- Wake Lock & Pocket Mode ---
+
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => {
+                        if (isRunning && document.visibilityState === 'visible') requestWakeLock();
+                    });
+                }
+            } catch (err) { console.log(err); }
+        }
+
+        function enterPocketMode() {
+            if (!isRunning) {
+                alert("Please START the timer first.");
+                return;
+            }
+            requestWakeLock();
+            el.overlay.style.display = 'flex';
+        }
+
+        let lastTap = 0;
+        el.overlay.addEventListener('click', (e) => {
+            const cur = new Date().getTime();
+            if (cur - lastTap < 500) {
+                el.overlay.style.display = 'none';
+            }
+            lastTap = cur;
+        });
+        
+        document.addEventListener('visibilitychange', () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                requestWakeLock();
+            }
+        });
+    </script>
+</body>
+</html>
