@@ -98,10 +98,10 @@ function finishTimer() {
     lastSeconds = TOTAL_MINUTES * 60;
     el.overlay.classList.add('alarm-bg');
     el.pocketMsg.classList.remove('hidden');
-    playAlarmSequence();
+    speak("Time is up. Pencils down.");
 }
 
-// --- Audio & Alarm ---
+// --- Audio ---
 
 function initAudio() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -127,30 +127,6 @@ function stopAudio() {
     }
 }
 
-function playBeep(freq = 880) {
-    if (!audioCtx) return;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = 'square';
-    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.start();
-    gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
-    osc.stop(audioCtx.currentTime + 0.5);
-}
-
-function playAlarmSequence() {
-    let count = 0;
-    const interval = setInterval(() => {
-        playBeep(880); playBeep(1200);
-        navigator.vibrate([500, 200, 500]);
-        count++;
-        if (count > 10) clearInterval(interval);
-    }, 1000);
-    speak("Time is up. Pencils down.");
-}
-
 function speak(text) {
     if ('speechSynthesis' in window) {
         const u = new SpeechSynthesisUtterance(text);
@@ -162,6 +138,10 @@ function speak(text) {
 // --- UI Updates ---
 
 function checkAnnouncements(seconds) {
+    // TODO - this is very brittle.  A much better approach would be to store the _set_ of future
+    // announcement times, and then at _every_ wakeup (not just whole minutes), we check if there
+    // are _any_ expired times in that set.  If so, remove them all and announce the actual
+    // remaining time, in case we miss an exact notification.
     if (seconds % 60 === 0) {
         const mins = seconds / 60;
         if (CHECKPOINTS.includes(mins)) {
