@@ -111,7 +111,7 @@ function initAudio() {
     const bufferSize = 2 * audioCtx.sampleRate;
     const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const output = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) { output[i] = Math.random() * 0.005; }
+    for (let i = 0; i < bufferSize; i++) { output[i] = Math.random() * 0.001; }
 
     whiteNoiseNode = audioCtx.createBufferSource();
     whiteNoiseNode.buffer = noiseBuffer;
