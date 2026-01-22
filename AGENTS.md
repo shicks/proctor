@@ -46,6 +46,11 @@ Even with a Wake Lock, background tabs or inactive interactions can sometimes be
 * **Implementation:** A static `manifest.json` file is linked in the `<head>` of `index.html`.
 * **Purpose:** Allows Android devices to "Install App" and launch in standalone mode (no browser address bar).
 
+#### **E. Audible Alerts**
+
+* **Implementation:** Uses `speechSynthesis` for voice announcements and `AudioContext` to generate a gentle chime sound.
+* **Logic:** A `playChime()` function generates a sine wave chime (880Hz) before each speech announcement to provide a clear audible cue for checkpoints and timer completion.
+
 ## **3\. Configuration & State**
 
 * **Input Format:** TotalMinutes, Alert1, Alert2, Alert3... (e.g., 30, 15, 10, 5).  
