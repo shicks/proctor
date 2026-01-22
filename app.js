@@ -147,8 +147,7 @@ function finishTimer() {
     lastSeconds = TOTAL_MINUTES * 60;
     el.overlay.classList.add('alarm-bg');
     el.pocketMsg.classList.remove('hidden');
-    playChime();
-    speak("Time is up. Pencils down.");
+    playChime().then(() => speak("Time is up. Pencils down."));
     saveState();
 }
 
@@ -178,26 +177,57 @@ function stopAudio() {
     }
 }
 
-function playChime() {
+async function playChime() {
     if (!audioCtx) initAudio();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
 
-    const now = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    return new Promise((resolve) => {
+        const now = audioCtx.currentTime;
+        const masterGain = audioCtx.createGain();
+        const filter = audioCtx.createBiquadFilter();
 
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, now);
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(4000, now);
+        filter.frequency.exponentialRampToValueAtTime(200, now + 1.5);
+        
+        masterGain.connect(filter);
+        filter.connect(audioCtx.destination);
 
-    gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.2, now + 0.05);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 1.5);
+        const partials = [
+            { freqMult: 1.0,   gain: 0.5,  decay: 1.5 }, // Longest decay
+            { freqMult: 2.003, gain: 0.2,  decay: 1.2 },
+            { freqMult: 2.401, gain: 0.15, decay: 0.8 },
+        ];
 
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
+        partials.forEach((p, index) => {
+            const osc = audioCtx.createOscillator();
+            const oscGain = audioCtx.createGain();
 
-    osc.start(now);
-    osc.stop(now + 1.5);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880 * p.freqMult, now);
+
+            oscGain.gain.setValueAtTime(0, now);
+            oscGain.gain.linearRampToValueAtTime(p.gain, now + 0.01);
+            oscGain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
+
+            osc.connect(oscGain);
+            oscGain.connect(masterGain);
+
+            // Use the fundamental (index 0) to resolve the promise
+            if (index === 0) {
+                osc.onended = () => {
+                    // Clean up nodes if necessary, then resolve
+                    resolve();
+                };
+            }
+
+            osc.start(now);
+            osc.stop(now + p.decay);
+        });
+
+        masterGain.gain.setValueAtTime(1, now);
+        masterGain.gain.exponentialRampToValueAtTime(0.01, now + 1.5);
+    });
 }
 
 function speak(text) {
@@ -218,8 +248,7 @@ function checkAnnouncements(seconds) {
     if (seconds % 60 === 0) {
         const mins = seconds / 60;
         if (CHECKPOINTS.includes(mins)) {
-            playChime();
-            speak(`${mins} minutes remaining.`);
+            playChime().then(() => speak(`${mins} minutes remaining.`));
             navigator.vibrate(500);
         }
     }
