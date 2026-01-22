@@ -147,6 +147,7 @@ function finishTimer() {
     lastSeconds = TOTAL_MINUTES * 60;
     el.overlay.classList.add('alarm-bg');
     el.pocketMsg.classList.remove('hidden');
+    playChime();
     speak("Time is up. Pencils down.");
     saveState();
 }
@@ -177,6 +178,28 @@ function stopAudio() {
     }
 }
 
+function playChime() {
+    if (!audioCtx) initAudio();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, now);
+
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.2, now + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 1.5);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start(now);
+    osc.stop(now + 1.5);
+}
+
 function speak(text) {
     if ('speechSynthesis' in window) {
         const u = new SpeechSynthesisUtterance(text);
@@ -195,6 +218,7 @@ function checkAnnouncements(seconds) {
     if (seconds % 60 === 0) {
         const mins = seconds / 60;
         if (CHECKPOINTS.includes(mins)) {
+            playChime();
             speak(`${mins} minutes remaining.`);
             navigator.vibrate(500);
         }
