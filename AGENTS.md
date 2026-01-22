@@ -49,7 +49,9 @@ Even with a Wake Lock, background tabs or inactive interactions can sometimes be
 ## **3\. Configuration & State**
 
 * **Input Format:** TotalMinutes, Alert1, Alert2, Alert3... (e.g., 30, 15, 10, 5).  
-* **Persistence:** Configuration is saved to localStorage under the key proctorConfig.  
+* **Persistence:**
+    * **Configuration:** Saved to `localStorage` under the key `proctorConfig`.
+    * **Timer State:** The running status and target finish time are saved to `localStorage` under the key `proctorState`. This allows the timer to resume or display the correct remaining time after a page reload.
 * **Safety:** The configuration input is disabled while the timer is running.
 
 ## **4\. File Structure**

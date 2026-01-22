@@ -8,6 +8,7 @@ let audioCtx = null;
 let wakeLock = null;
 let isRunning = false;
 let lastSeconds = 0;
+let targetTime = null;
 let whiteNoiseNode = null;
 
 const el = {
@@ -42,11 +43,55 @@ worker.onmessage = (e) => {
     }
 };
 
-applyConfig();
+applyConfig(true);
+loadState();
+
+// --- State Management ---
+
+function saveState() {
+    const state = {
+        isRunning: isRunning,
+        targetTime: targetTime,
+        lastSeconds: lastSeconds
+    };
+    localStorage.setItem('proctorState', JSON.stringify(state));
+}
+
+function loadState() {
+    const saved = localStorage.getItem('proctorState');
+    if (!saved) return;
+    try {
+        const state = JSON.parse(saved);
+        lastSeconds = state.lastSeconds;
+        isRunning = state.isRunning;
+        targetTime = state.targetTime;
+
+        if (isRunning && targetTime) {
+            const now = Date.now();
+            const remaining = Math.ceil((targetTime - now) / 1000);
+            if (remaining > 0) {
+                lastSeconds = remaining;
+                updateUI(lastSeconds);
+                updateControls(true);
+                el.input.disabled = true;
+                worker.postMessage({ command: 'start', targetTime: targetTime });
+            } else {
+                isRunning = false;
+                targetTime = null;
+                finishTimer();
+            }
+        } else {
+            updateUI(lastSeconds);
+            updateControls(isRunning);
+        }
+    } catch (e) {
+        console.error("Error loading state:", e);
+    }
+}
 
 // --- Core Functions ---
 
-function applyConfig() {
+function applyConfig(isInit = false) {
     if (isRunning) return;
 
     const raw = el.input.value;
@@ -63,6 +108,7 @@ function applyConfig() {
 
         lastSeconds = TOTAL_MINUTES * 60;
         updateUI(lastSeconds);
+        if (!isInit) saveState();
     } else {
         el.status.textContent = "Invalid format. Try: 30, 15, 10, 5";
         el.status.className = "text-[10px] text-red-500 h-4";
@@ -75,22 +121,25 @@ async function startTimer() {
     initAudio();
     requestWakeLock();
     const now = Date.now();
-    const targetTime = now + (lastSeconds * 1000);
+    targetTime = now + (lastSeconds * 1000);
     worker.postMessage({ command: 'start', targetTime: targetTime });
     isRunning = true;
     updateControls(true);
+    saveState();
 }
 
 function stopTimer() {
     if (!isRunning) return;
     worker.postMessage({ command: 'stop' });
     isRunning = false;
+    targetTime = null;
     updateControls(false);
     stopAudio();
     if (wakeLock) wakeLock.release();
     el.input.disabled = false;
     el.overlay.classList.remove('alarm-bg');
     el.pocketMsg.classList.add('hidden');
+    saveState();
 }
 
 function finishTimer() {
@@ -99,6 +148,7 @@ function finishTimer() {
     el.overlay.classList.add('alarm-bg');
     el.pocketMsg.classList.remove('hidden');
     speak("Time is up. Pencils down.");
+    saveState();
 }
 
 // --- Audio ---
@@ -189,6 +239,7 @@ function enterPocketMode() {
         alert("Please START the timer first.");
         return;
     }
+    initAudio();
     requestWakeLock();
     el.overlay.style.display = 'flex';
 }
