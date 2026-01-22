@@ -108,6 +108,7 @@ function applyConfig(isInit = false) {
 
         lastSeconds = TOTAL_MINUTES * 60;
         updateUI(lastSeconds);
+        updateControls(false);
         if (!isInit) saveState();
     } else {
         el.status.textContent = "Invalid format. Try: 30, 15, 10, 5";
@@ -142,12 +143,31 @@ function stopTimer() {
     saveState();
 }
 
+function resetTimer() {
+    if (isRunning) return;
+    lastSeconds = TOTAL_MINUTES * 60;
+    el.overlay.classList.remove('alarm-bg');
+    el.pocketMsg.classList.add('hidden');
+    updateUI(lastSeconds);
+    updateControls(false);
+    saveState();
+}
+
+function handleStopReset() {
+    if (isRunning) {
+        stopTimer();
+    } else {
+        resetTimer();
+    }
+}
+
 function finishTimer() {
     stopTimer();
     lastSeconds = TOTAL_MINUTES * 60;
     el.overlay.classList.add('alarm-bg');
     el.pocketMsg.classList.remove('hidden');
     playChime().then(() => speak("Time is up. Pencils down."));
+    updateControls(false);
     saveState();
 }
 
@@ -270,8 +290,21 @@ function updateUI(seconds) {
 function updateControls(active) {
     el.start.disabled = active;
     el.start.className = active ? "w-full bg-gray-700 text-gray-500 font-bold py-4 rounded-xl text-lg opacity-50 cursor-not-allowed" : "w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl text-lg shadow-lg active:scale-95 transition";
-    el.stop.disabled = !active;
-    el.stop.className = !active ? "w-full bg-gray-700 text-gray-400 font-bold py-4 rounded-xl text-lg opacity-50 cursor-not-allowed" : "w-full bg-red-600 hover:bg-red-500 text-white font-bold py-4 rounded-xl text-lg shadow-lg active:scale-95 transition";
+
+    if (active) {
+        el.stop.textContent = "STOP";
+        el.stop.disabled = false;
+        el.stop.className = "w-full bg-red-600 hover:bg-red-500 text-white font-bold py-4 rounded-xl text-lg shadow-lg active:scale-95 transition";
+    } else {
+        el.stop.textContent = "RESET";
+        const isAtStart = lastSeconds === TOTAL_MINUTES * 60;
+        const isFinished = !el.pocketMsg.classList.contains('hidden');
+        const canReset = !isAtStart || isFinished;
+        el.stop.disabled = !canReset;
+        el.stop.className = !canReset
+            ? "w-full bg-gray-700 text-gray-400 font-bold py-4 rounded-xl text-lg opacity-50 cursor-not-allowed"
+            : "w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-4 rounded-xl text-lg shadow-lg active:scale-95 transition";
+    }
 }
 
 // --- Wake Lock & Pocket Mode ---

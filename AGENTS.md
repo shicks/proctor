@@ -58,6 +58,7 @@ Even with a Wake Lock, background tabs or inactive interactions can sometimes be
     * **Configuration:** Saved to `localStorage` under the key `proctorConfig`.
     * **Timer State:** The running status and target finish time are saved to `localStorage` under the key `proctorState`. This allows the timer to resume or display the correct remaining time after a page reload.
 * **Safety:** The configuration input is disabled while the timer is running.
+* **Reset Logic:** When the timer is not running, the "STOP" button changes to a "RESET" button. This allows the user to reset the timer to the start or clear the "TIME UP!" state after completion. The button is only enabled when a reset is actually possible (i.e., not already at the start or in a finished state).
 
 ## **4\. File Structure**
 
